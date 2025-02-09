@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "presentation-scheduler-discord-bot"
+version = "0.1.0"
+description = "This package contains the code for a discord bot that reads a google sheet to create discord channels for presentations that are listed in the google sheets."
+authors = ["Reza Davari <rezazzr@hotmail.com>"]
+readme = "README.md"
+packages = [{include = "presentation_scheduler_discord_bot"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+discord-py = "^2.4.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
