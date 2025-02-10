@@ -76,7 +76,7 @@ The bot supports two operation modes: **add** and **remove**. You choose the mod
 To create or update categories and channels as per your CSV schedule, run:
 
 ```bash
-poetry run python bot.py --add
+poetry run python main.py --add
 ```
 
 The bot will:
@@ -90,7 +90,7 @@ The bot will:
 To remove channels and delete any empty categories, run:
 
 ```bash
-poetry run python bot.py --remove
+poetry run python main.py --remove
 ```
 
 The bot will:
