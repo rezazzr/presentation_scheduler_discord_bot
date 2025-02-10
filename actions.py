@@ -63,8 +63,8 @@ async def process_csv_add(client):
 
                     paper_title = record.get("Paper Title", "No Title").strip()
                     paper_link = record.get("Paper Link", "No Link").strip()
-                    presenter = record.get("Presenter", "N/A").strip()
-                    topic_category = record.get("Topic Category", "N/A").strip()
+                    presenter = record.get("Presenters", "N/A").strip()
+                    topic_category = record.get("Topic", "N/A").strip()
                     presentation_date = dt.strftime("%A, %B %d, %Y")
                     new_message_content = (
                         f"**📜 Paper being presented**: {paper_title}\n"
