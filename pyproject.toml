@@ -9,6 +9,7 @@ packages = [{include = "presentation_scheduler_discord_bot"}]
 [tool.poetry.dependencies]
 python = "^3.10"
 discord-py = "^2.4.0"
+python-dotenv = "^1.0.1"
 
 
 [build-system]
