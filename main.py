@@ -2,12 +2,12 @@ import sys
 
 import discord
 
-from actions import process_csv_add, process_csv_remove
+from actions import process_csv_add, process_csv_remove, process_stats
 from config import TOKEN
 
 # Check command-line arguments for operation mode.
-if len(sys.argv) < 2 or sys.argv[1] not in ["--add", "--remove"]:
-    print("Usage: python3 main.py --add or --remove")
+if len(sys.argv) < 2 or sys.argv[1] not in ["--add", "--remove", "--stats"]:
+    print("Usage: python3 main.py --add, --remove, or --stats")
     sys.exit(1)
 OPERATION_MODE = sys.argv[1]
 
@@ -26,7 +26,10 @@ async def on_ready():
         await process_csv_add(client)
     elif OPERATION_MODE == "--remove":
         await process_csv_remove(client)
+    elif OPERATION_MODE == "--stats":
+        await process_stats(client)
     await client.close()
 
 
+assert TOKEN is not None, "Please set the TOKEN in config.py"
 client.run(TOKEN)

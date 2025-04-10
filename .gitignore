@@ -1,1 +1,4 @@
 .env
+stats.csv
+__pycache__/actions.cpython-311.pyc
+__pycache__/config.cpython-311.pyc
