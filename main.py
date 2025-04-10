@@ -2,12 +2,12 @@ import sys
 
 import discord
 
-from actions import process_csv_add, process_csv_remove, process_stats
+from actions import process_csv_add, process_csv_remove, process_moodle, process_stats
 from config import TOKEN
 
 # Check command-line arguments for operation mode.
-if len(sys.argv) < 2 or sys.argv[1] not in ["--add", "--remove", "--stats"]:
-    print("Usage: python3 main.py --add, --remove, or --stats")
+if len(sys.argv) < 2 or sys.argv[1] not in ["--add", "--remove", "--stats", "--moodle"]:
+    print("Usage: python3 main.py --add, --remove, --stats, or --moodle")
     sys.exit(1)
 OPERATION_MODE = sys.argv[1]
 
@@ -28,6 +28,8 @@ async def on_ready():
         await process_csv_remove(client)
     elif OPERATION_MODE == "--stats":
         await process_stats(client)
+    elif OPERATION_MODE == "--moodle":
+        await process_moodle(client)
     await client.close()
 
 

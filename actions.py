@@ -1,8 +1,13 @@
 import csv
+import os
+import re
 from datetime import datetime
 
+import aiohttp
 import pandas as pd
 from discord.utils import get
+from pdf2image import convert_from_bytes
+from PIL import Image
 
 from config import CSV_FILE, GUILD_ID
 
@@ -330,3 +335,155 @@ async def process_stats(client):
     csv_filename = "stats.csv"
     df.to_csv(csv_filename)
     print(f"Saved stats table to '{csv_filename}'.")
+
+
+async def process_moodle(client):
+    """
+    Creates a "moodle" folder.
+    For each channel whose name starts with 'p' followed by an integer (e.g., p20 or p1),
+    creates a subdirectory (named as the channel) within the moodle folder that contains:
+      - A text file with the pinned message by the presentation bot.
+      - For each message containing a Google Slides URL, downloads the slides as a PDF,
+        then extracts the first page as a PNG thumbnail resized to a width of 150 pixels
+        while preserving the aspect ratio.
+    """
+    guild = client.get_guild(GUILD_ID)
+    if guild is None:
+        print("Guild not found!")
+        return
+
+    # Create the main moodle folder if it does not exist.
+    moodle_dir = "moodle"
+    os.makedirs(moodle_dir, exist_ok=True)
+
+    # Regular expression to match channels that start with "p" followed by one or more digits.
+    channel_pattern = re.compile(r"^p\d+")
+
+    # Iterate over all text channels.
+    for channel in guild.text_channels:
+        if not channel_pattern.match(channel.name):
+            continue
+
+        print(f"\nProcessing channel: {channel.name}")
+        # Create a subdirectory for the current channel.
+        channel_dir = os.path.join(moodle_dir, channel.name)
+        if os.path.isdir(channel_dir):
+            print(f"Directory for channel '{channel.name}' exists, skipping it.")
+            continue
+        os.makedirs(channel_dir, exist_ok=True)
+
+        # Retrieve pinned messages in the channel.
+        try:
+            pinned_messages = await channel.pins()
+        except Exception as e:
+            print(f"Error retrieving pins in channel '{channel.name}': {e}")
+            pinned_messages = []
+
+        # Locate the pinned message from the bot.
+        pinned_message = None
+        for msg in pinned_messages:
+            if msg.author.id == client.user.id:
+                pinned_message = msg
+                break
+
+        # clean up the pinned message content from markdown formatting
+        if pinned_message:
+            pinned_message.content = re.sub(
+                r"\*\*(.*?)\*\*", r"\1", pinned_message.content
+            )  # remove bold
+            pinned_message.content = re.sub(
+                r"\*(.*?)\*", r"\1", pinned_message.content
+            )  # remove italics
+            pinned_message.content = re.sub(
+                r"\*\*\*(.*?)\*\*\*", r"\1", pinned_message.content
+            )  # remove bold italics
+
+        # Write the pinned message content to a text file.
+        if pinned_message:
+            pinned_file_path = os.path.join(channel_dir, "pinned.txt")
+            try:
+                with open(pinned_file_path, "w", encoding="utf-8") as f:
+                    f.write(pinned_message.content)
+                print(f"Saved pinned message for channel '{channel.name}'.")
+            except Exception as e:
+                print(f"Error saving pinned message for channel '{channel.name}': {e}")
+        else:
+            print(f"No pinned message found for channel '{channel.name}'.")
+
+        # Initialize a counter for naming downloaded slide files.
+        slide_counter = 1
+
+        # Iterate through all messages in the channel's history.
+        async for msg in channel.history(limit=None):
+            # Look for Google Slides URLs (assuming they begin with 'https://docs.google.com/presentation/d/').
+            slides_urls = re.findall(
+                r"(https://docs\.google\.com/presentation/d/[^/\s]+)", msg.content
+            )
+            if slides_urls:
+                for slides_url in slides_urls:
+                    # Extract the presentation ID from the URL.
+                    presentation_id_match = re.search(r"/d/([^/\s]+)", slides_url)
+                    if not presentation_id_match:
+                        print(f"Could not extract presentation ID from {slides_url}")
+                        continue
+                    presentation_id = presentation_id_match.group(1)
+
+                    # Construct the download URL for the slides (export as PDF)
+                    download_url = f"https://docs.google.com/presentation/d/{presentation_id}/export/pdf"
+
+                    async with aiohttp.ClientSession() as session:
+                        # Download the slides PDF.
+                        try:
+                            async with session.get(download_url) as resp:
+                                if resp.status == 200:
+                                    pdf_data = await resp.read()
+                                    pdf_file_path = os.path.join(
+                                        channel_dir, f"slides_{slide_counter}.pdf"
+                                    )
+                                    with open(pdf_file_path, "wb") as f:
+                                        f.write(pdf_data)
+                                    print(
+                                        f"Downloaded slides PDF for presentation {presentation_id} in channel '{channel.name}'."
+                                    )
+                                else:
+                                    print(
+                                        f"Failed to download slides PDF from {download_url}. Status code: {resp.status}"
+                                    )
+                                    continue  # Skip thumbnail extraction if download fails
+                        except Exception as e:
+                            print(
+                                f"Error downloading slides PDF from {download_url}: {e}"
+                            )
+                            continue
+
+                    # Extract thumbnail from the first page of the downloaded PDF.
+                    try:
+                        # Convert the first page of the PDF to an image.
+                        images = convert_from_bytes(pdf_data, first_page=1, last_page=1)
+                        if images:
+                            thumbnail_image = images[0]
+                            # Determine new height preserving aspect ratio for a new width of 720 pixels.
+                            orig_width, orig_height = thumbnail_image.size
+                            new_width = 720
+                            new_height = int(orig_height * (new_width / orig_width))
+                            # Use Image.Resampling.LANCZOS (available in recent Pillow versions)
+                            thumbnail_image = thumbnail_image.resize(
+                                (new_width, new_height), Image.Resampling.LANCZOS
+                            )
+
+                            thumbnail_file_path = os.path.join(
+                                channel_dir, f"thumbnail_{slide_counter}.png"
+                            )
+                            thumbnail_image.save(thumbnail_file_path, "PNG")
+                            print(
+                                f"Extracted and resized thumbnail for presentation {presentation_id} in channel '{channel.name}'."
+                            )
+                        else:
+                            print(
+                                f"Could not extract an image from PDF for presentation {presentation_id}."
+                            )
+                    except Exception as e:
+                        print(
+                            f"Error converting PDF to image for presentation {presentation_id}: {e}"
+                        )
+                    slide_counter += 1
